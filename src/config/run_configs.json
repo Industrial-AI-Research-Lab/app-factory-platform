@@ -1,0 +1,35 @@
+{
+  "_comment": "SEED ONLY - source of truth for runtime remains MongoDB collection run_configurations. This file is used by seed.py for bootstrap/upsert.",
+  "run_configurations": [
+    {
+      "_id": "default",
+      "tenant_id": "__system__",
+      "name": "Default",
+      "description": "Balanced default configuration for everyday runs.",
+      "models": {
+        "default": "gpt-5-mini",
+        "intent_classifier": "gpt-5-mini",
+        "question_handler": "gpt-5-mini",
+        "project_name": "gpt-5-nano",
+        "agent_default": "gpt-5-mini",
+        "evaluation": "gpt-5-mini"
+      },
+      "is_default": true
+    },
+    {
+      "_id": "advanced",
+      "tenant_id": "__system__",
+      "name": "Advanced",
+      "description": "Higher-capability configuration for more demanding runs.",
+      "models": {
+        "default": "gpt-5.2",
+        "intent_classifier": "gpt-5-mini",
+        "question_handler": "gpt-5.2",
+        "project_name": "gpt-5-nano",
+        "agent_default": "gpt-5.2",
+        "evaluation": "gpt-5-mini"
+      },
+      "is_default": false
+    }
+  ]
+}

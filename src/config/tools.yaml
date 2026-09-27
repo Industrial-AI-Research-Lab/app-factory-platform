@@ -1,0 +1,593 @@
+# Tool configurations — source of truth for the Dynamic Tool Registry.
+#
+# Each tool has:
+#   _id            – unique identifier (matches the function name the LLM calls)
+#   name           – human-readable display name
+#   description    – what the tool does (also used as LLM function description)
+#   category       – grouping: file_ops | search | execution | web | planning | delegation
+#   source         – "builtin" (shipped with AppFactory) or "external_mcp" (future)
+#   enabled        – whether this tool is available at all
+#   schema         – OpenAI function-calling schema (type + function object)
+
+tools:
+  # ── file operations ──────────────────────────────────────────────
+
+  - _id: "create"
+    name: "Create File"
+    description: "Create a new file with full content (prefer this over bash heredoc cat writes)."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "create"
+        description: "Create a new file with full content (prefer this over bash heredoc cat writes)."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "File path to create."
+            content:
+              type: "string"
+              description: "Full file content."
+          required: ["path", "content"]
+
+  - _id: "read"
+    name: "Read File"
+    description: "Read a file with optional line range."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "read"
+        description: "Read a file with optional line range."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path to the file to read."
+            start_line:
+              type: "integer"
+              description: "1-indexed start line (optional)."
+            end_line:
+              type: "integer"
+              description: "1-indexed end line (optional)."
+          required: ["path"]
+
+  - _id: "edit"
+    name: "Edit File"
+    description: "Apply a unified diff to a file (read before edit enforced)."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "edit"
+        description: "Apply a unified diff to a file (read before edit enforced)."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "File path to edit."
+            diff:
+              type: "string"
+              description: "Unified diff text (one file)."
+          required: ["path", "diff"]
+
+  - _id: "attachment_presign_get"
+    name: "Get Attachment Download URL"
+    description: "Generate a temporary presigned URL for downloading a user attachment directly from object storage."
+    category: "attachments"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "attachment_presign_get"
+        description: "Generate a temporary presigned URL for downloading a user attachment directly from object storage."
+        parameters:
+          type: "object"
+          properties:
+            attachment_id:
+              type: "string"
+              description: "ID of the user attachment."
+          required: [ "attachment_id" ]
+
+  - _id: "attachment_presign_put"
+    name: "Create File Upload URL"
+    description: "Generate a temporary presigned URL for uploading a new file directly to object storage. Files created through this tool are stored under the presigned_tool directory. When used by an MCP server, the directory should be the MCP server name."
+    category: "storage"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "attachment_presign_put"
+        description: "Generate a temporary presigned URL for uploading a new file directly to object storage. Files are stored under the presigned_tool directory. When used by an MCP server, use the MCP server name as the directory."
+        parameters:
+          type: "object"
+          properties:
+            directory:
+              type: "string"
+              description: "Logical directory name. When called by an MCP server, use the MCP server name."
+            filename:
+              type: "string"
+              description: "Name of the file to upload."
+            content_type:
+              type: "string"
+              description: "MIME type of the file, for example 'text/markdown'."
+          required: [ "directory", "filename", "content_type" ]
+
+  # ── search ───────────────────────────────────────────────────────
+
+  - _id: "grep"
+    name: "Grep Search"
+    description: "Search codebase using a regex pattern. Use this instead of grep/rg in bash."
+    category: "search"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "grep"
+        description: "Search codebase using a regex pattern. Use this instead of grep/rg in bash."
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: "Regex pattern to search for."
+            path:
+              type: "string"
+              description: "Directory or file to search within (default: .)."
+            case_sensitive:
+              type: "boolean"
+              description: "Case sensitive search (default: false)."
+            max_results:
+              type: "integer"
+              description: "Max matches to return (default: 50)."
+          required: ["query"]
+
+  - _id: "glob"
+    name: "Glob Search"
+    description: "Find files by glob pattern."
+    category: "search"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "glob"
+        description: "Find files by glob pattern."
+        parameters:
+          type: "object"
+          properties:
+            pattern:
+              type: "string"
+              description: "Glob pattern like **/*.py"
+            path:
+              type: "string"
+              description: "Root directory to search (default: .)."
+            max_results:
+              type: "integer"
+              description: "Max files to return (default: 50)."
+          required: ["pattern"]
+
+  # ── execution ────────────────────────────────────────────────────
+
+  - _id: "bash"
+    name: "Run Shell Command"
+    description: "Run a shell command in the sandbox. Do not use grep/rg here; use the grep tool."
+    category: "execution"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "bash"
+        description: "Run a shell command in the sandbox. Do not use grep/rg here; use the grep tool."
+        parameters:
+          type: "object"
+          properties:
+            command:
+              type: "string"
+              description: "Command to run."
+            cwd:
+              type: "string"
+              description: "Working directory (optional)."
+          required: ["command"]
+
+  # ── web ──────────────────────────────────────────────────────────
+
+  - _id: "web_search"
+    name: "Web Search"
+    description: "Search the web."
+    category: "web"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "web_search"
+        description: "Search the web."
+        parameters:
+          type: "object"
+          properties:
+            query:
+              type: "string"
+              description: "Search query."
+            max_results:
+              type: "integer"
+              description: "Max results (default: 5)."
+          required: ["query"]
+
+  # ── planning / task management ───────────────────────────────────
+
+  - _id: "todo_read"
+    name: "Read TODO List"
+    description: "Read the current task TODO list."
+    category: "planning"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "todo_read"
+        description: "Read the current task TODO list."
+        parameters:
+          type: "object"
+          properties: {}
+
+  - _id: "todo_write"
+    name: "Write TODO List"
+    description: "Replace the current task TODO list."
+    category: "planning"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "todo_write"
+        description: "Replace the current task TODO list."
+        parameters:
+          type: "object"
+          properties:
+            todos:
+              type: "array"
+              items:
+                type: "object"
+              description: "List of todo items."
+          required: ["todos"]
+
+  # ── delegation ───────────────────────────────────────────────────
+
+  - _id: "task"
+    name: "Delegate Subtask"
+    description: "Delegate a subtask to a specialized worker agent with short context."
+    category: "delegation"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "task"
+        description: "Delegate a subtask to a specialized worker agent with short context."
+        parameters:
+          type: "object"
+          properties:
+            role:
+              type: "string"
+              description: "Worker role: researcher|doc_reader|test_runner|code_reviewer"
+            prompt:
+              type: "string"
+              description: "Task prompt for the worker."
+          required: ["role", "prompt"]
+
+  - _id: "delegate_to_agent"
+    name: "Delegate to Agent"
+    description: "Launch another agent from the project pool as a sub-agent with its own tools and project context."
+    category: "delegation"
+    source: "builtin"
+    enabled: true
+    allowed_agents: []
+    schema:
+      type: "function"
+      function:
+        name: "delegate_to_agent"
+        description: "Delegate a sub-task to another project agent. The target agent runs with its own tools and returns a structured result."
+        parameters:
+          type: "object"
+          properties:
+            agent_id:
+              type: "string"
+              description: "Target agent id, for example coding_agent or qa_agent."
+            instruction:
+              type: "string"
+              description: "Specific instruction for the target agent."
+          required: ["agent_id", "instruction"]
+
+  # ── workflow context ─────────────────────────────────────────────────
+
+  - _id: "context_read"
+    name: "Read Workflow Context"
+    description: "Read a logical SharedContext key such as user_prompt, requirements, plan, or a custom workflow key."
+    category: "context"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "context_read"
+        description: "Read a logical SharedContext key such as user_prompt, requirements, plan, or a custom workflow key."
+        parameters:
+          type: "object"
+          properties:
+            key:
+              type: "string"
+              description: "Logical context key to read."
+          required: ["key"]
+
+  - _id: "context_write"
+    name: "Write Workflow Context"
+    description: "Write a logical SharedContext key. requirements and plan use specialized storage; custom keys go to custom_context."
+    category: "context"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "context_write"
+        description: "Write a logical SharedContext key. requirements and plan use specialized storage; custom keys go to custom_context."
+        parameters:
+          type: "object"
+          properties:
+            key:
+              type: "string"
+              description: "Logical context key to write."
+            value:
+              description: "Value to write to the logical context key."
+          required: ["key", "value"]
+
+  # ── deploy (integration) ────────────────────────────────────────────
+
+  - _id: "deploy_from_artifacts"
+    name: "Deploy from Artifacts"
+    description: "Build Docker image from project artifacts and deploy to Kubernetes."
+    category: "execution"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "deploy_from_artifacts"
+        description: "Build Docker image from project artifacts and deploy to Kubernetes."
+        parameters:
+          type: "object"
+          properties:
+            deploy_slug:
+              type: "string"
+              description: "Short slug for the deployment URL."
+            target_namespace:
+              type: "string"
+              description: "K8s namespace (default: AppFactory-apps)."
+            deploy_spec:
+              type: "object"
+              description: "Optional deploy spec produced by detect_stack (stack, port, build_dir, etc.)."
+          required: ["deploy_slug"]
+
+  - _id: "detect_stack"
+    name: "Detect Stack"
+    description: "Detect project stack (static/react/node/python) from file artifacts."
+    category: "execution"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "detect_stack"
+        description: "Detect project stack (static/react/node/python) from file artifacts."
+        parameters:
+          type: "object"
+          properties: {}
+
+  - _id: "analyze_and_repair"
+    name: "Analyze and Repair Deploy Failure"
+    description: "Analyze deploy build failure diagnostics and attempt automated repair."
+    category: "execution"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "analyze_and_repair"
+        description: "Analyze deploy build failure diagnostics and attempt automated repair."
+        parameters:
+          type: "object"
+          properties:
+            diagnostics:
+              type: "object"
+              description: "Build failure diagnostics from deploy_from_artifacts."
+          required: ["diagnostics"]
+
+  # ── legacy MCP tool aliases (used by tool_registry, not by dispatch) ─
+  # These are the container-use MCP tool names. They map 1:1 to the
+  # dispatch tools above but use the names the MCP server expects.
+  # Kept for backward compatibility; will be removed in cleanup task.
+
+  - _id: "list_files"
+    name: "List Files"
+    description: "List files in the project workspace to understand structure."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "list_files"
+        description: "List files in the project workspace to understand structure."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Directory to list (optional, defaults to current workspace root)."
+
+  - _id: "read_file"
+    name: "Read File (MCP)"
+    description: "Read the contents of a specific file in the workspace."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "read_file"
+        description: "Read the contents of a specific file in the workspace."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path to the file to read."
+          required: ["path"]
+
+  - _id: "create_file"
+    name: "Create File (MCP)"
+    description: "Create a file with provided content in the workspace."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "create_file"
+        description: "Create a file with provided content in the workspace."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path to the file to create."
+            content:
+              type: "string"
+              description: "Content to write to the new file."
+          required: ["path", "content"]
+
+  - _id: "edit_file"
+    name: "Edit File (MCP)"
+    description: "Overwrite an existing file with new content."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "edit_file"
+        description: "Overwrite an existing file with new content."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path to the file to edit."
+            content:
+              type: "string"
+              description: "New file content."
+          required: ["path", "content"]
+
+  - _id: "delete_file"
+    name: "Delete File"
+    description: "Delete a file at the specified path."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "delete_file"
+        description: "Delete a file at the specified path."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path of the file to delete."
+          required: ["path"]
+
+  - _id: "find_replace_in_file"
+    name: "Find & Replace In File"
+    description: "Find and replace text in a file."
+    category: "file_ops"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "find_replace_in_file"
+        description: "Find and replace text in a file."
+        parameters:
+          type: "object"
+          properties:
+            path:
+              type: "string"
+              description: "Path of the file to update."
+            search_text:
+              type: "string"
+              description: "Text to find."
+            replace_text:
+              type: "string"
+              description: "Replacement text."
+            which_match:
+              type: "string"
+              description: "Optional identifier for a specific match to replace."
+          required: ["path", "search_text", "replace_text"]
+
+  - _id: "run_command"
+    name: "Run Command (MCP)"
+    description: "Execute a shell command in the sandbox (install deps, run code, tests)."
+    category: "execution"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "run_command"
+        description: "Execute a shell command in the sandbox (install deps, run code, tests)."
+        parameters:
+          type: "object"
+          properties:
+            command:
+              type: "string"
+              description: "Command to run."
+            cwd:
+              type: "string"
+              description: "Optional working directory."
+          required: ["command"]
+  
+  - _id: "ask_human"
+    name: "Ask Human"
+    description: "Ask the user a question and wait for their answer before continuing. Use when you need clarification or a decision from the user."
+    category: "hitl"
+    source: "builtin"
+    enabled: true
+    schema:
+      type: "function"
+      function:
+        name: "ask_human"
+        description: "Ask the user a question and wait for their answer before continuing. Use when you need clarification or a decision from the user."
+        parameters:
+          type: "object"
+          properties:
+            question:
+              type: "string"
+              description: "The question to ask the user."
+          required: ["question"]
+
+
